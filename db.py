@@ -201,8 +201,8 @@ def delete_order(order_id: int) -> None:
 
 # ------------------------------------------------------------
 # Listen / Details
-# ------------------------------------------------------------
-def list_orders_for_day(date_yyyy_mm_dd: str) -> list[dict]:
+# ------------------------------------------------------------    
+def list_orders_for_period(start_date: str, end_date: str) -> list[dict]:
     with get_conn() as conn:
         rows = conn.execute(
             """
@@ -211,10 +211,10 @@ def list_orders_for_day(date_yyyy_mm_dd: str) -> list[dict]:
               c.name AS customer_name, c.phone AS customer_phone, c.address AS customer_address
             FROM orders o
             LEFT JOIN customers c ON c.id = o.customer_id
-            WHERE o.event_date = ?
-            ORDER BY o.event_time ASC, o.id ASC
+            WHERE o.event_date BETWEEN ? AND ?
+            ORDER BY o.event_date ASC, o.event_time ASC, o.id ASC
             """,
-            (date_yyyy_mm_dd,),
+            (start_date, end_date),
         ).fetchall()
         return [dict(r) for r in rows]
 

@@ -263,13 +263,22 @@ with tab_bestellung:
 with tab_tagesliste:
     st.subheader("Tagesliste / Rechnungen")
 
-    col1, col2 = st.columns([2, 1])
+    col1, col2 = st.columns([1, 1])
     with col1:
-        tag = st.date_input("Tag auswählen", value=dt.date.today(), key="tag_liste")
-    with col2:
-        st.button("Aktualisieren")
+        start_tag = st.date_input(
+            "Von",
+            value=dt.date.today(),
+            key="start_tag"
+        )
 
-    orders = db.list_orders_for_day(tag.isoformat())
+    with col2:
+        end_tag = st.date_input(
+            "Bis",
+            value=dt.date.today(),
+            key="end_tag"
+        )
+
+    orders = db.list_orders_for_period(start_tag.isoformat(), end_tag.isoformat())
 
     if not orders:
         st.info("Keine Bestellungen für diesen Tag.")

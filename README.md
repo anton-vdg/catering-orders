@@ -51,13 +51,13 @@ git clone [<repo-url>](https://github.com/anton-vdg/catering-orders.git)
 cd catering-orders
 
 ### 2) Virtuelle Umgebung anlegen
-```
+```bash
 python -m venv partyenv
-```
+
 ### 3) Abhängigkeiten installieren
-```
+```bash
 partyenv\Scripts\python.exe -m pip install -r requirements.txt
-```
+
 
 ---
 

@@ -96,11 +96,6 @@ def rechnung_pdf_erzeugen(order_id: int, out_dir: str = "rechnungen") -> Path:
         c.drawString(50, y, f"Telefon: {phone}")
         y -= 14
 
-    email = (order.get("customer_email") or "").strip()
-    if email:
-        c.drawString(50, y, f"E-Mail: {email}")
-        y -= 14
-
     y -= 10
 
     # ------------------------------------------------------------

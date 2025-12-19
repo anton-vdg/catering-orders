@@ -1,8 +1,6 @@
 import datetime as dt
 from pathlib import Path
-
 import streamlit as st
-
 import db
 import invoice_pdf
 
@@ -18,28 +16,16 @@ db.init_db()
 # -------------------- Anzeige-Texte --------------------
 STATUS_LABELS = {
     "open": "Offen",
-    "in_progress": "In Arbeit",
-    "ready": "Fertig",
-    "delivered": "Ausgeliefert",
     "paid": "Bezahlt",
-    "cancelled": "Storniert",
 }
 
-ZAHLUNGSSTATUS_LABELS = {
-    "unpaid": "Unbezahlt",
-    "partial": "Teilweise bezahlt",
-    "paid": "Bezahlt",
-    "cancelled": "Storniert",
-}
+ZAHLUNGSARTEN = ["", "cash", "card", "transfer"]
 
-ZAHLUNGSARTEN = ["", "cash", "card", "transfer", "paypal", "other"]
 ZAHLUNGSART_LABELS = {
     "": "—",
     "cash": "Bar",
     "card": "Karte",
     "transfer": "Überweisung",
-    "paypal": "PayPal",
-    "other": "Sonstiges",
 }
 
 ART_LABELS = {
@@ -67,7 +53,7 @@ def cent_zu_euro_text(cent: int) -> str:
 st.title("Partyservice – Bestellverwaltung")
 
 tab_bestellung, tab_tagesliste, tab_produkte = st.tabs(
-    ["Neue Bestellung", "Tagesliste / Rechnungen", "Produkte"]
+    ["Neue Bestellung", "Tagesliste", "Produktliste"]
 )
 
 # ==========================================================
@@ -81,10 +67,10 @@ with tab_bestellung:
     # -------- Termin & Art --------
     with linke_spalte:
         event_date = st.date_input(
-            "Datum",
-            value=dt.date.today()
+            "Datum", 
+            value=dt.date.today(), format="DD.MM.YYYY"
         )
-
+        
         event_time = st.time_input(
             "Uhrzeit (Abholung / Lieferung)",
             value=dt.datetime.now().time().replace(second=0, microsecond=0)
@@ -97,37 +83,27 @@ with tab_bestellung:
         )
 
         notes = st.text_area(
-            "Notizen (optional)",
+            "Notizen",
             placeholder="z. B. Allergien, extra Besteck, Klingeln bei ..."
         )
 
     # -------- Kundendaten --------
     with rechte_spalte:
-        st.markdown("**Kunde (empfohlen)**")
-
         customer_name = st.text_input(
             "Name",
-            placeholder="Max Mustermann"
         )
 
         customer_phone = st.text_input(
             "Telefon",
-            placeholder="0176 …"
-        )
-
-        customer_email = st.text_input(
-            "E-Mail (optional)",
-            placeholder="mail@beispiel.de"
         )
 
         customer_address = st.text_area(
-            "Adresse (bei Lieferung)",
-            placeholder="Straße, PLZ Ort"
+            "Adresse",
         )
 
     # -------- Auftragsebene --------
     st.markdown("---")
-    st.markdown("**Auftragsebene (optional)**")
+    st.markdown("**Auftragsebene**")
 
     c1, c2 = st.columns(2)
     with c1:
@@ -146,9 +122,9 @@ with tab_bestellung:
             value=0.0
         )
 
-    # -------- Bestellpositionen --------
+    # -------- Produkte --------
     st.markdown("---")
-    st.markdown("**Bestellpositionen**")
+    st.markdown("**Produkte**")
 
     if "items" not in st.session_state:
         st.session_state["items"] = [{
@@ -240,7 +216,6 @@ with tab_bestellung:
                 kunden_id = db.upsert_customer(
                     name=customer_name.strip() or "Unbekannt",
                     phone=customer_phone,
-                    email=customer_email,
                     address=customer_address
                 )
 
@@ -320,7 +295,6 @@ with tab_tagesliste:
                     st.write("**Kunde**")
                     st.write(f"Name: {o.get('customer_name') or '-'}")
                     st.write(f"Telefon: {o.get('customer_phone') or '-'}")
-                    st.write(f"E-Mail: {o.get('customer_email') or '-'}")
                     if o["fulfilment_type"] == "delivery":
                         st.write(f"Adresse: {o.get('customer_address') or '-'}")
 
@@ -366,14 +340,6 @@ with tab_tagesliste:
                         key=f"status_{order_id}",
                     )
 
-                    zahl_status = st.selectbox(
-                        "Zahlungsstatus",
-                        options=list(ZAHLUNGSSTATUS_LABELS.keys()),
-                        index=list(ZAHLUNGSSTATUS_LABELS.keys()).index(o.get("payment_status", "unpaid")),
-                        format_func=lambda k: ZAHLUNGSSTATUS_LABELS[k],
-                        key=f"paystatus_{order_id}",
-                    )
-
                     aktuelle_art = o.get("payment_method") or ""
                     if aktuelle_art not in ZAHLUNGSARTEN:
                         ZAHLUNGSARTEN.append(aktuelle_art)
@@ -399,11 +365,13 @@ with tab_tagesliste:
                     with s2:
                         if st.button("Zahlung speichern", key=f"save_pay_{order_id}"):
                             try:
-                                db.update_payment(order_id, zahl_status, zahl_art)
-                                st.success("Zahlung aktualisiert")
+                                db.set_payment_method(order_id, zahl_art)   # nur Zahlungsart speichern
+                                db.update_status(order_id, "paid")          # Auftrag auf bezahlt setzen
+                                st.success("Zahlung gespeichert und Auftrag auf 'Bezahlt' gesetzt")
                                 st.rerun()
                             except Exception as e:
                                 st.error(f"Fehler: {e}")
+
 
                     st.markdown("---")
 
@@ -441,21 +409,21 @@ with tab_tagesliste:
                         except Exception as e:
                             st.error(f"Fehler: {e}")
 
-                        st.markdown("---")
-                        st.write("**Bestellung löschen**")
+                    st.markdown("---")
+                    st.write("**Bestellung löschen**")
 
-                        bestaetigen = st.checkbox(
-                            "Ich möchte diese Bestellung endgültig löschen",
-                            key=f"del_confirm_{order_id}",
-                        )
+                    bestaetigen = st.checkbox(
+                        "Ich möchte diese Bestellung endgültig löschen",
+                        key=f"del_confirm_{order_id}",
+                    )
 
-                        if st.button("Bestellung löschen", key=f"del_btn_{order_id}", disabled=not bestaetigen):
-                            try:
-                                db.delete_order(order_id)
-                                st.success("Bestellung wurde gelöscht.")
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Fehler: {e}")
+                    if st.button("Bestellung löschen", key=f"del_btn_{order_id}", disabled=not bestaetigen):
+                        try:
+                            db.delete_order(order_id)
+                            st.success("Bestellung wurde gelöscht.")
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Fehler: {e}")
 
 
 # ==========================================================
@@ -463,7 +431,6 @@ with tab_tagesliste:
 # ==========================================================
 
 with tab_produkte:
-    st.subheader("Produktliste / Artikelstamm")
 
     col1, col2 = st.columns(2)
     with col1:
